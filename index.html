@@ -1,0 +1,452 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>가사 A4 인쇄 도구</title>
+<style>
+  :root{
+    --page-top: 12mm;
+    --page-side: 14mm;
+    --body-inset: 4mm;
+    --lyrics-size: 10.2pt;
+    --lyrics-line: 1.42;
+    --lyrics-weight: 400;
+    --column-count: 1;
+    --font-stack: "Batang", "바탕", "Times New Roman", Georgia, serif;
+  }
+
+  *{box-sizing:border-box}
+
+  html,body{
+    margin:0;
+    padding:0;
+    background:#f3f4f6;
+    color:#111;
+    font-family:Arial,"Malgun Gothic","맑은 고딕",sans-serif;
+  }
+
+  .app{
+    min-height:100vh;
+  }
+
+  .toolbar{
+    position:sticky;
+    top:0;
+    z-index:10;
+    display:flex;
+    flex-wrap:wrap;
+    gap:10px 14px;
+    align-items:end;
+    padding:12px 16px;
+    background:#fff;
+    border-bottom:1px solid #d9dde3;
+    box-shadow:0 2px 8px rgba(0,0,0,.05);
+  }
+
+  .control{
+    display:flex;
+    flex-direction:column;
+    gap:5px;
+    min-width:110px;
+  }
+
+  .control label,
+  .control .label{
+    font-size:12px;
+    font-weight:700;
+    color:#3b4350;
+  }
+
+  .control input[type="text"],
+  .control select{
+    height:32px;
+    padding:0 9px;
+    border:1px solid #bcc3cc;
+    border-radius:6px;
+    background:#fff;
+    font:inherit;
+  }
+
+  .control input[type="range"]{
+    width:150px;
+  }
+
+  .range-row{
+    display:flex;
+    align-items:center;
+    gap:8px;
+  }
+
+  .value{
+    min-width:42px;
+    text-align:right;
+    font-size:12px;
+    color:#555;
+  }
+
+  .seg{
+    display:inline-flex;
+    gap:0;
+  }
+
+  .seg button{
+    height:32px;
+    padding:0 11px;
+    border:1px solid #bcc3cc;
+    background:#fff;
+    cursor:pointer;
+    font:inherit;
+    font-size:12px;
+    margin-left:-1px;
+  }
+
+  .seg button:first-child{
+    margin-left:0;
+    border-radius:6px 0 0 6px;
+  }
+
+  .seg button:last-child{
+    border-radius:0 6px 6px 0;
+  }
+
+  .seg button.active{
+    position:relative;
+    z-index:1;
+    color:#fff;
+    background:#111;
+    border-color:#111;
+  }
+
+  .actions{
+    margin-left:auto;
+    display:flex;
+    gap:8px;
+    align-items:end;
+  }
+
+  .btn{
+    height:34px;
+    padding:0 14px;
+    border-radius:7px;
+    border:1px solid #b9c0c9;
+    background:#fff;
+    font-weight:700;
+    cursor:pointer;
+  }
+
+  .btn.primary{
+    background:#111;
+    color:#fff;
+    border-color:#111;
+  }
+
+  .print-note{
+    width:100%;
+    font-size:12px;
+    color:#5b6470;
+  }
+
+  .stage{
+    padding:24px 12px 40px;
+    overflow:auto;
+  }
+
+  .page{
+    width:210mm;
+    min-height:297mm;
+    margin:0 auto;
+    padding:var(--page-top) var(--page-side) 12mm;
+    background:#fff;
+    box-shadow:0 4px 20px rgba(0,0,0,.12);
+  }
+
+  .header{
+    text-align:center;
+    margin:0 0 5mm;
+  }
+
+  .title{
+    margin:0;
+    font-family:var(--font-stack);
+    font-size:20pt;
+    line-height:1.15;
+    font-weight:400;
+  }
+
+  .artist{
+    margin-top:2mm;
+    font-family:var(--font-stack);
+    font-size:10.5pt;
+    font-weight:400;
+    color:#444;
+  }
+
+  .divider{
+    width:100%;
+    border-top:1px solid #b9b9b9;
+    margin:0 0 5mm;
+  }
+
+  .lyrics{
+    padding:0 var(--body-inset);
+    font-family:var(--font-stack);
+    font-size:var(--lyrics-size);
+    line-height:var(--lyrics-line);
+    font-weight:var(--lyrics-weight);
+    white-space:pre-wrap;
+    overflow-wrap:anywhere;
+    column-count:var(--column-count);
+    column-gap:10mm;
+    column-rule:none;
+    min-height:220mm;
+    outline:none;
+  }
+
+  .lyrics:empty::before{
+    content:"여기에 가사를 붙여넣으세요.";
+    color:#aaa;
+  }
+
+  @page{
+    size:A4 portrait;
+    margin:0;
+  }
+
+  @media print{
+    html,body{
+      width:210mm;
+      height:auto;
+      margin:0 !important;
+      padding:0 !important;
+      background:#fff !important;
+    }
+
+    .toolbar{
+      display:none !important;
+    }
+
+    .stage{
+      padding:0 !important;
+      margin:0 !important;
+      overflow:visible !important;
+    }
+
+    .page{
+      width:210mm;
+      min-height:297mm;
+      margin:0 !important;
+      box-shadow:none !important;
+      break-after:page;
+    }
+
+    .lyrics:empty::before{
+      content:"";
+    }
+  }
+
+  @media (max-width:900px){
+    .actions{margin-left:0}
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="toolbar">
+    <div class="control">
+      <label for="titleInput">제목</label>
+      <input id="titleInput" type="text" placeholder="곡 제목">
+    </div>
+
+    <div class="control">
+      <label for="artistInput">가수</label>
+      <input id="artistInput" type="text" placeholder="가수명">
+    </div>
+
+    <div class="control">
+      <label for="fontSelect">글씨체</label>
+      <select id="fontSelect">
+        <option value='"Batang","바탕","Times New Roman",Georgia,serif'>바탕/명조</option>
+        <option value='"Malgun Gothic","맑은 고딕",Arial,sans-serif'>맑은 고딕</option>
+        <option value='Arial,"Malgun Gothic",sans-serif'>Arial</option>
+        <option value='"Times New Roman","Batang",serif'>Times New Roman</option>
+      </select>
+    </div>
+
+    <div class="control">
+      <span class="label">글씨 크기</span>
+      <div class="range-row">
+        <input id="fontSize" type="range" min="8" max="16" step="0.1" value="10.2">
+        <span id="fontSizeVal" class="value">10.2pt</span>
+      </div>
+    </div>
+
+    <div class="control">
+      <span class="label">글씨 두께</span>
+      <div class="seg" id="weightGroup">
+        <button type="button" data-weight="300">300</button>
+        <button type="button" data-weight="400" class="active">400</button>
+        <button type="button" data-weight="500">500</button>
+        <button type="button" data-weight="600">600</button>
+        <button type="button" data-weight="700">700</button>
+      </div>
+    </div>
+
+    <div class="control">
+      <span class="label">줄간격</span>
+      <div class="range-row">
+        <input id="lineHeight" type="range" min="1.1" max="1.8" step="0.02" value="1.42">
+        <span id="lineHeightVal" class="value">1.42</span>
+      </div>
+    </div>
+
+    <div class="control">
+      <span class="label">상단 여백</span>
+      <div class="range-row">
+        <input id="topMargin" type="range" min="0" max="30" step="1" value="12">
+        <span id="topMarginVal" class="value">12mm</span>
+      </div>
+    </div>
+
+    <div class="control">
+      <span class="label">좌우 여백</span>
+      <div class="range-row">
+        <input id="sideMargin" type="range" min="5" max="30" step="1" value="14">
+        <span id="sideMarginVal" class="value">14mm</span>
+      </div>
+    </div>
+
+    <div class="control">
+      <span class="label">단 구성</span>
+      <div class="seg" id="columnGroup">
+        <button type="button" data-columns="1" class="active">1단</button>
+        <button type="button" data-columns="2">2단</button>
+      </div>
+    </div>
+
+    <div class="actions">
+      <button type="button" class="btn" id="resetBtn">초기화</button>
+      <button type="button" class="btn primary" id="printBtn">인쇄 / PDF 저장</button>
+    </div>
+
+    <div class="print-note">
+      인쇄창에서 “머리글과 바닥글”을 해제하면 URL·날짜·페이지 번호 없이 A4 본문만 인쇄할 수 있습니다.
+    </div>
+  </div>
+
+  <div class="stage">
+    <main class="page" id="printPage">
+      <header class="header">
+        <h1 class="title" id="titlePreview">제목</h1>
+        <div class="artist" id="artistPreview">가수</div>
+      </header>
+      <div class="divider"></div>
+      <section class="lyrics" id="lyrics" contenteditable="true" spellcheck="false"></section>
+    </main>
+  </div>
+</div>
+
+<script>
+(() => {
+  const root = document.documentElement;
+  const titleInput = document.getElementById('titleInput');
+  const artistInput = document.getElementById('artistInput');
+  const titlePreview = document.getElementById('titlePreview');
+  const artistPreview = document.getElementById('artistPreview');
+  const fontSelect = document.getElementById('fontSelect');
+  const fontSize = document.getElementById('fontSize');
+  const lineHeight = document.getElementById('lineHeight');
+  const topMargin = document.getElementById('topMargin');
+  const sideMargin = document.getElementById('sideMargin');
+  const fontSizeVal = document.getElementById('fontSizeVal');
+  const lineHeightVal = document.getElementById('lineHeightVal');
+  const topMarginVal = document.getElementById('topMarginVal');
+  const sideMarginVal = document.getElementById('sideMarginVal');
+  const weightButtons = [...document.querySelectorAll('#weightGroup button')];
+  const columnButtons = [...document.querySelectorAll('#columnGroup button')];
+  const resetBtn = document.getElementById('resetBtn');
+  const printBtn = document.getElementById('printBtn');
+  const lyrics = document.getElementById('lyrics');
+
+  let weight = 400;
+  let columns = 1;
+
+  function updateHeader(){
+    titlePreview.textContent = titleInput.value.trim() || '제목';
+    artistPreview.textContent = artistInput.value.trim() || '가수';
+    document.title = `${titleInput.value.trim() || '가사'} - A4 인쇄`;
+  }
+
+  function apply(){
+    root.style.setProperty('--font-stack', fontSelect.value);
+    root.style.setProperty('--lyrics-size', `${fontSize.value}pt`);
+    root.style.setProperty('--lyrics-line', lineHeight.value);
+    root.style.setProperty('--page-top', `${topMargin.value}mm`);
+    root.style.setProperty('--page-side', `${sideMargin.value}mm`);
+    root.style.setProperty('--lyrics-weight', weight);
+    root.style.setProperty('--column-count', columns);
+
+    fontSizeVal.textContent = `${fontSize.value}pt`;
+    lineHeightVal.textContent = lineHeight.value;
+    topMarginVal.textContent = `${topMargin.value}mm`;
+    sideMarginVal.textContent = `${sideMargin.value}mm`;
+  }
+
+  titleInput.addEventListener('input', updateHeader);
+  artistInput.addEventListener('input', updateHeader);
+
+  [fontSelect,fontSize,lineHeight,topMargin,sideMargin].forEach(el=>{
+    el.addEventListener('input', apply);
+    el.addEventListener('change', apply);
+  });
+
+  weightButtons.forEach(btn=>{
+    btn.addEventListener('click',()=>{
+      weight = Number(btn.dataset.weight);
+      weightButtons.forEach(b=>b.classList.toggle('active', b===btn));
+      apply();
+    });
+  });
+
+  columnButtons.forEach(btn=>{
+    btn.addEventListener('click',()=>{
+      columns = Number(btn.dataset.columns);
+      columnButtons.forEach(b=>b.classList.toggle('active', b===btn));
+      apply();
+    });
+  });
+
+  resetBtn.addEventListener('click',()=>{
+    titleInput.value = '';
+    artistInput.value = '';
+    fontSelect.selectedIndex = 0;
+    fontSize.value = '10.2';
+    lineHeight.value = '1.42';
+    topMargin.value = '12';
+    sideMargin.value = '14';
+    weight = 400;
+    columns = 1;
+    lyrics.innerHTML = '';
+
+    weightButtons.forEach(b=>b.classList.toggle('active', b.dataset.weight==='400'));
+    columnButtons.forEach(b=>b.classList.toggle('active', b.dataset.columns==='1'));
+
+    updateHeader();
+    apply();
+  });
+
+  printBtn.addEventListener('click',()=>{
+    printBtn.disabled = true;
+    try{
+      window.print();
+    }finally{
+      setTimeout(()=>{ printBtn.disabled = false; }, 500);
+    }
+  });
+
+  updateHeader();
+  apply();
+})();
+</script>
+</body>
+</html>
